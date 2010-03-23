@@ -2,8 +2,108 @@
 /MultiCacheSim -- A Multiprocessor coherent cache simulator.
 /Brandon Lucia 2009, 2010
 /University of Washington
+
+/MultiCacheSim is free software; you can redistribute it and/or modify it 
+/under the terms
+/of the GNU General Public License as published by the Free Software Foundation;
+/either version 2, or (at your option) any later version.
+/
+/MultiCacheSim is distributed in the  hope that  it will  be  useful, 
+/but  WITHOUT ANY
+/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+/
+/You should  have received a copy of  the GNU General  Public License along with
+/MultiCacheSim; see the file COPYING.  If not, write to 
+/Free Software Foundation, 59
+/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+/
+/
+/MultiCacheSim uses code that is part of SESC.  The following is the disclaimer
+/distributed with this code (it also appears in each file from SESC).
+/
+/SESC is free software; you can redistribute it and/or modify it under the terms
+/of the GNU General Public License as published by the Free Software Foundation;
+/either version 2, or (at your option) any later version.
+/
+/SESC is    distributed in the  hope that  it will  be  useful, but  WITHOUT ANY
+/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+/
+/You should  have received a copy of  the GNU General  Public License along with
+/SESC; see the file COPYING.  If not, write to the  Free Software Foundation, 59
+/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+/
 /************************************************
 MultiCacheSim is a simulation infrastructure for experimenting with coherent caches.
+It is designed to be used directly in your code, or to be built as a pintool.
+This simulator is packaged with MSI and MESI coherence code.  The developer's guide
+below describes the process of adding other protocols to the simulator.
+
+/*Building and Testing the use of MultiCacheSim directly with CacheTestDriver*/
+This code is all plain ol' C++ and has no external library dependences, except on
+the standard library which is relied on for the <vector> class.  it should be
+as simple as typing "make" to build the included test driver (implemented
+in CacheTestDriver.cpp).  After you build everything, run the
+test program.  The output should look like this (ignore these numbers, you're
+just checking that it runs):
+
+-----Cache 0-----
+ReadHits:1
+ReadMisses:200135
+ReadMissesServicedRemotely:3
+WriteHits:1
+CoherenceMisses:0
+WriteMisses:199863
+-----Cache 1-----
+ReadHits:1
+ReadMisses:200026
+ReadMissesServicedRemotely:2
+WriteHits:1
+CoherenceMisses:0
+WriteMisses:199972
+-----Cache 2-----
+ReadHits:0
+ReadMisses:199728
+ReadMissesServicedRemotely:6
+WriteHits:2
+CoherenceMisses:0
+WriteMisses:200270
+-----Cache 3-----
+ReadHits:1
+ReadMisses:200060
+ReadMissesServicedRemotely:3
+WriteHits:0
+CoherenceMisses:0
+WriteMisses:199939
+
+Looking at CacheTestDriver.cpp will give you a nice insight into how to use CacheTestDriver.  
+
+/*Building MultiCacheSim for use with Pin*/
+MultiCacheSim can be configured to run as a pin tool (http://pintool.org).
+This is mostly automated, but there's a couple things you need to do for things
+to work correctly.  First, you need to define PIN_HOME in your environment.
+Second, when you build MultiCacheSim, you need to set BLDTYPE=pin in the
+environment.  If you have recently built for use with the CacheTestDriver
+program, you'll need to make clean; before making with BLDTYPE=pin, or there
+will be some wonky error messages.   Building with BLDTYPE=pin, you will
+produce MultiCacheSim_PinDriver.so.  This is your pintool shared object file.
+run it like "pin -mt -t MultiCacheSim_PinDriver.so -csize 32768 -bsize 64
+-assoc 2 -num_caches 16 -proto MSI -- <app>".  The options are: csize=cache size in bytes.
+bsize=block size in bytes. assoc=associativity (number of ways per set).
+num_caches=the number of caches to simulate. proto=your protocol (defaults to MSI)
+
+/*Single-Processor simulation*/
+MultiCacheSim is designed as a multiprocessor cache simulator, but if you only
+add 1 cache to your multicachesim object, you will have a uniprocessor cache
+simulator.  Everything else still applies; just provide "0" as the thread id of
+your main thread (or whatever value you want), and you should be good to go.
+
+/////////////////////////////////
+//MultiCacheSim Development Guide
+/////////////////////////////////
+This section will give an overview of the code of this project, and will describe what
+is required to add a different cache coherence protocol.  
 
 /*Interface: CacheInterface*/
 The project's top level interface is the CacheInterface (defined in CacheInterface.h).  This is
@@ -71,89 +171,34 @@ you may want to make the initial state of a line different (for instance, do we
 make it Shared or Modified by default?).
 
 So in summary:
-To implement a new coherence protocol:
-1)Subclass SMPCache.  This generally means creating two new files: Whatever_SMPCache.h and Whatever_SMPCache.cpp.  Examples are in MSI_SMPCache.h/cpp
-  --Implement readLine, writeLine, and fillLine.  Use MSI_SMPCache as a guide.
-2)Subclass SESC's StateGeneric<> type.  An example is in MSI_SMPCacheState.h.
-  --Enumerate your states, and add instantiate your subclass of SMPCache with this type as its type argument.  Use MSI_SMPCache/MSI_SMPCache as a guide.
-3)Add a new compile time/#definable option to MultiCacheSim.cpp to actually instantiate your new type of coherent cache.  
-  --There are 2 important #ifdefs.  At the top of the MultiCacheSim.h, there is one to decide what
-    header you want to include. In createNewCache, there is a point at which the
-    cache is actually allocated and constructed.  You should copy the line for the
-    MSI_SMPCache, and change it to be the name of your class. Then, guard it in the
-    same way with an #ifdef, so only one type of cache gets instantiated at a time.
-    The build script looks in the environment for a variable called PROTOCOL.  If
-    it is defined, it defines it via the commandline when you build.  So for
-    instance, to build the MSI version, you would use "PROTOCOL=MSI make". 
+To implement a new coherence protocol -- the "Whatever" protocol:
+1)Subclass SMPCache.  This generally means creating two new files:
+Whatever_SMPCache.h and Whatever_SMPCache.cpp.  Examples are in
+MSI_SMPCache.h/cpp --Implement readLine, writeLine, and fillLine.  Use
+MSI_SMPCache as a guide.  
+
+2)Subclass SESC's StateGeneric<> type.  An example is
+in MSI_SMPCacheState.h.  --Enumerate your states, and add instantiate your
+subclass of SMPCache with this type as its type argument.  Use
+MSI_SMPCache/MSI_SMPCache as a guide.
+
+3)Add code to make Whatever a valid protocol option:
+  a)#include Whatever_SMPCache.h in MultiCacheSim.h
+  b)Add PROTO_WHATEVER to the CoherenceProtocol enum in MultiCacheSim.h
+  c)In MultiCacheSim::createNewCache add a branch to the conditional that 
+    recognizes your coherence protocol enum value, and creates a new 
+    Whatever_SMPCache if the protocol is PROTO_WHATEVER.
+
+4)In MultiCacheSim_PinDriver.cpp add code to process the KnobProto string
+  argument -- you'll need to have a case that looks for "Whatever", and
+  if the Knob has that value, constructs a MultiCacheSim with PROTO_WHATEVER
+  as its CoherenceProtocol argument
 
 
 /*Locking*/
-This is designed to work in a multithreaded environment, and it does.  But.
 There is one big sledgehammer of a lock protecting all the caches, so if it is
 used in realtime (e.g., in a pintool) execution serializes on the caches lock.
-Now the execution is still legal and correct etc, but it is perturbed by the
-need to acquire the lock, and so it might not reflect what actually happens
-(but that's just a matter of experimental bias).  If you decide to change the
+Think "Locking the bus" =).  If you decide to change the
 vector of caches (adding or removing them) you need to hold the lock that
 protects the vector (or the whole thing can go up in smoke).  This lock is 
 declared in MultiCacheSim.h
-
-
-/*Building and Testing MultiCacheSim with CacheTestDriver*/
-This is all written in C++ and has no external library dependences, except on
-the standard library which is relied on for the <vector> class.  it should be
-as simple as typing "make test" to build the included test driver (implemented
-in CacheTestDriver.cpp).  Running make test will build everything, and run the
-test program.  The output should look like this (approximately -- it uses
-randomness):
-
------Cache 0-----
-ReadHits:1
-ReadMisses:200135
-ReadMissesServicedRemotely:3
-WriteHits:1
-CoherenceMisses:0
-WriteMisses:199863
------Cache 1-----
-ReadHits:1
-ReadMisses:200026
-ReadMissesServicedRemotely:2
-WriteHits:1
-CoherenceMisses:0
-WriteMisses:199972
------Cache 2-----
-ReadHits:0
-ReadMisses:199728
-ReadMissesServicedRemotely:6
-WriteHits:2
-CoherenceMisses:0
-WriteMisses:200270
------Cache 3-----
-ReadHits:1
-ReadMisses:200060
-ReadMissesServicedRemotely:3
-WriteHits:0
-CoherenceMisses:0
-WriteMisses:199939
-
-Looking at CacheTestDriver.cpp will give you a nice insight into how to use CacheTestDriver.  
-
-/*Building MultiCacheSim for use with Pin*/
-MultiCacheSim can be configured to run as a pin tool (http://pintool.org).
-This is mostly automated, but there's a couple things you need to do for things
-to work correctly.  First, you need to define PIN_HOME in your environment.
-Second, when you build MultiCacheSim, you need to set BLDTYPE=pin in the
-environment.  If you have recently built for use with the CacheTestDriver
-program, you'll need to make clean; before making with BLDTYPE=pin, or there
-will be some wonky error messages.   Building with BLDTYPE=pin, you will
-produce MultiCacheSim_PinDriver.so.  This is your pintool shared object file.
-run it like "pin -mt -t MultiCacheSim_PinDriver.so -csize 32768 -bsize 64
--assoc 2 -num_caches 16 -- <app>".  The options are: csize=cache size in bytes.
-bsize=block size in bytes. assoc=associativity (number of ways per set).
-num_caches=the number of caches to simulate.
-
-/*Single-Processor simulation*/
-MultiCacheSim is designed as a multiprocessor cache simulator, but if you only
-add 1 cache to your multicachesim object, you will have a uniprocessor cache
-simulator.  Everything else still applies; just provide "0" as the thread id of
-your main thread (or whatever value you want), and you should be good to go.
