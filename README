@@ -79,6 +79,28 @@ WriteMisses:199939
 
 Looking at CacheTestDriver.cpp will give you a nice insight into how to use CacheTestDriver.  
 
+/*What do the output counters mean??*/
+The output counters represent interesting events, concerning a cache coherence
+protocol.
+
+A Read Hit event occurs when a processor has a line in any valid state, and it
+performs a read operation.
+
+A Read Miss occurs when a processor has a line in invalid state, or doesn't
+have the line cached, and it performs a read.
+
+A Read Miss Serviced Remotely (A.K.A. Read Coherence Miss) occurs when a
+processor accesses a line and another processor has the data in any non-shared,
+non-invalid state.  In this case the other processor furnishes the missing
+processor with data.
+
+A Write Hit occurs whenever a processor executes a write to a line that it has
+cached in a state that permits writes.
+
+A Write Coherence Miss occurs when a processor has a line in shared state, and
+writes to it.  In this situation, the processor must invalidate other caches'
+copies, upgrade, then perform the write.
+
 /*Building MultiCacheSim for use with Pin*/
 MultiCacheSim can be configured to run as a pin tool (http://pintool.org).
 This is mostly automated, but there's a couple things you need to do for things
