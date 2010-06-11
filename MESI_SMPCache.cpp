@@ -62,10 +62,18 @@ void MESI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
   MESI_SMPCacheState *st = (MESI_SMPCacheState *)cache->findLine(addr);    
   //fprintf(stderr,"In MESI ReadLine\n");
   if(!st || (st && !(st->isValid())) ){//Read Miss -- i need to look in other peoples' caches for this data
+    
+    numReadMisses++;
+
+
+    if(st){
+      numReadOnInvalidMisses++;
+    }
 
     //fprintf(stderr,"MESI ReadLine: Miss -- calling remote action\n");
     //Query the other caches and get a remote read service object.
     MESI_SMPCache::RemoteReadService rrs = readRemoteAction(addr);
+    numReadRequestsSent++;
       
     MESIState_t newMesiState = MESI_INVALID;//It will never end up being invalid, though.
 
@@ -82,10 +90,11 @@ void MESI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
         newMesiState = MESI_SHARED;
 
       }else{
+        
+        numReadMissesServicedByOthers++;
 
         //Valid Read-Reply From Modified/Exclusive
         newMesiState = MESI_SHARED;
-        numReadMissesServicedByOthers++;
 
       }
     } 
@@ -93,8 +102,6 @@ void MESI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
     //fprintf(stderr,"MESI ReadLine: Miss -- calling fill line\n");
     fillLine(addr,newMesiState); 
 
-    //Update event counter for read misses
-    numReadMisses++;
       
   }else{ //Read Hit
 
@@ -141,24 +148,35 @@ MESI_SMPCache::InvalidateReply MESI_SMPCache::writeRemoteAction(uint32_t addr){
 
 void MESI_SMPCache::writeLine(uint32_t wrPC, uint32_t addr){
   MESI_SMPCacheState * st = (MESI_SMPCacheState *)cache->findLine(addr);    
-  MESI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
     
   if(!st || (st && !(st->isValid())) ){ //Write Miss
+    
+    numWriteMisses++;
+  
+    if(st){
+      numWriteOnInvalidMisses++;
+    }
+  
+    MESI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
+    numInvalidatesSent++;
 
     //Fill the line with the new write
     fillLine(addr,MESI_MODIFIED);
-    numWriteMisses++;
     return;
 
   }else if(st->getState() == MESI_SHARED){ //Coherence Miss
+    
+    numWriteMisses++;
+    numWriteOnSharedMisses++;
       
+    MESI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
+    numInvalidatesSent++;
+
     st->changeStateTo(MESI_MODIFIED);
-    numCoherenceMisses++;
     return;
 
   }else{ //Write Hit
 
-    st->changeStateTo(MESI_MODIFIED);
     numWriteHits++;
     return;
 

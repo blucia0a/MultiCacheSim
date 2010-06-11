@@ -31,7 +31,7 @@ MSI_SMPCache::RemoteReadService MSI_SMPCache::readRemoteAction(uint32_t addr){
     }
       
     MSI_SMPCacheState* otherState = (MSI_SMPCacheState *)otherCache->cache->findLine(addr);
-    if(otherState){
+    if(otherState){//Tag Matched
       if(otherState->getState() == MSI_MODIFIED){
 
         otherState->changeStateTo(MSI_SHARED);
@@ -44,7 +44,7 @@ MSI_SMPCache::RemoteReadService MSI_SMPCache::readRemoteAction(uint32_t addr){
       }else if(otherState->getState() == MSI_INVALID){ //doesn't matter at all.
 
       }
-    }
+    }//Otherwise, Tag didn't match
 
   }//done with other caches
 
@@ -54,11 +54,20 @@ MSI_SMPCache::RemoteReadService MSI_SMPCache::readRemoteAction(uint32_t addr){
 
 void MSI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
   MSI_SMPCacheState *st = (MSI_SMPCacheState *)cache->findLine(addr);    
-  //fprintf(stderr,"In MSI ReadLine\n");
-  if(!st || (st && !(st->isValid())) ){//Read Miss -- i need to look in other peoples' caches for this data
+  
+  if(!st || (st && !(st->isValid())) ){//Read Miss - tags didn't match, or line is invalid
+
+    //Update event counter for read misses
+    numReadMisses++;
+
+    if(st){
+      //Tag matched, but state was invalid
+      numReadOnInvalidMisses++;
+    }
 
     //Query the other caches and get a remote read service object.
     MSI_SMPCache::RemoteReadService rrs = readRemoteAction(addr);
+    numReadRequestsSent++;
       
     MSIState_t newMesiState = MSI_INVALID;//It will never end up being invalid, though.
 
@@ -75,20 +84,19 @@ void MSI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
         newMesiState = MSI_SHARED;
 
       }else{
+        
+        numReadMissesServicedByOthers++;
 
         //Valid Read-Reply From Modified/Exclusive
         newMesiState = MSI_SHARED;
-        numReadMissesServicedByOthers++;
 
       }
     } 
     //Fill the line
     fillLine(addr,newMesiState); 
 
-    //Update event counter for read misses
-    numReadMisses++;
       
-  }else{ //Read Hit
+  }else{ //Read Hit - any state but Invalid
 
     numReadHits++; 
     return; 
@@ -114,9 +122,11 @@ MSI_SMPCache::InvalidateReply MSI_SMPCache::writeRemoteAction(uint32_t addr){
 
       //if it was actually in the other cache:
       if(otherState && otherState->isValid()){
+
           /*Invalidate the line, cause we're writing*/
           otherState->invalidate();
           empty = false;
+
       }
 
     }//done with other caches
@@ -133,25 +143,38 @@ MSI_SMPCache::InvalidateReply MSI_SMPCache::writeRemoteAction(uint32_t addr){
 
 void MSI_SMPCache::writeLine(uint32_t wrPC, uint32_t addr){
   MSI_SMPCacheState * st = (MSI_SMPCacheState *)cache->findLine(addr);    
-  MSI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
     
-  if(!st || (st && !(st->isValid())) ){ //Write Miss
+  if(!st || (st && !(st->isValid())) ){ //Tag's didn't match, or line was invalid
+
+    numWriteMisses++;
+    
+    if(st){//if st!=NULL, tags matched, but line was invalid
+      numWriteOnInvalidMisses++;
+    }
+  
+    MSI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
+    numInvalidatesSent++;
 
     //Fill the line with the new write
     fillLine(addr,MSI_MODIFIED);
-    numWriteMisses++;
     return;
 
   }else if(st->getState() == MSI_SHARED){ //Coherence Miss
-      
+    
+    numWriteMisses++;
+
+    numWriteOnSharedMisses++;
+
+    MSI_SMPCache::InvalidateReply inv_ack = writeRemoteAction(addr);
+    numInvalidatesSent++;
+
     st->changeStateTo(MSI_MODIFIED);
-    numCoherenceMisses++;
     return;
 
   }else{ //Write Hit
 
-    st->changeStateTo(MSI_MODIFIED);
-    numWriteHits++;
+    numWriteHits++;//No coherence action required!
+
     return;
 
   }

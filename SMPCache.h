@@ -17,11 +17,17 @@ public:
   //Stats about the events the cache saw during execution
   int numReadHits;
   int numReadMisses;
+
+  int numReadOnInvalidMisses;
+  int numReadRequestsSent;
   int numReadMissesServicedByOthers;
 
   int numWriteHits;
   int numWriteMisses;
-  int numCoherenceMisses;
+
+  int numWriteOnSharedMisses;
+  int numWriteOnInvalidMisses;
+  int numInvalidatesSent;
   
   SMPCache(int cpuid, std::vector<SMPCache * > * cacheVector);
 
