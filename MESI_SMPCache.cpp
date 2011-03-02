@@ -188,3 +188,13 @@ MESI_SMPCache::~MESI_SMPCache(){
 
 }
 
+char *MESI_SMPCache::Identify(){
+  return "MESI Cache Coherence";
+}
+
+
+extern "C" SMPCache *Create(int num, std::vector<SMPCache*> *cvec, int csize, int casso, int bs, int addrble, const char *repl, bool skw){
+
+  return new MESI_SMPCache(num,cvec,csize,casso,bs,addrble,repl,skw);
+
+}

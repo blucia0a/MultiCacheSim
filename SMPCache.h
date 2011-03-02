@@ -3,6 +3,7 @@
 #include "CacheCore.h"
 #include <vector>
 
+
 class SMPCache{
 
 public:
@@ -44,8 +45,12 @@ public:
   //Fill line touches cache state, bringing addr's block in, and setting its state to mesi_state 
   virtual void fillLine(uint32_t addr, uint32_t mesi_state) = 0;
 
+  virtual char *Identify() = 0;
+
   //Dump the stats for this cache to outFile
   virtual void dumpStatsToFile(FILE* outFile);
 
 };
+
+typedef SMPCache *(*CacheFactory)(int, std::vector<SMPCache*> *, int, int, int, int, const char *, bool);
 #endif

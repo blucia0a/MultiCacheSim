@@ -1,25 +1,13 @@
 #include "MultiCacheSim.h"
-MultiCacheSim::MultiCacheSim(FILE *cachestats, int size, int assoc, int bsize){
-    proto = PROTO_MSI;
-    CacheStats = cachestats;
-    num_caches = 0;
-    cache_size = size;
-    cache_assoc = assoc;
-    cache_bsize = bsize; 
-    #ifndef PIN
-    pthread_mutex_init(&allCachesLock, NULL);
-    #else
-    InitLock(&allCachesLock);
-    #endif
-}
 
-MultiCacheSim::MultiCacheSim(FILE *cachestats, int size, int assoc, int bsize, CoherenceProtocol p){
-  proto = p;
+MultiCacheSim::MultiCacheSim(FILE *cachestats, int size, int assoc, int bsize, CacheFactory c){
+  cacheFactory = c;
   CacheStats = cachestats;
   num_caches = 0;
   cache_size = size;
   cache_assoc = assoc;
   cache_bsize = bsize; 
+
   #ifndef PIN
   pthread_mutex_init(&allCachesLock, NULL);
   #else
@@ -53,8 +41,10 @@ void MultiCacheSim::createNewCache(){
     GetLock(&allCachesLock,1); 
     #endif
 
-    SMPCache * newcache;
 
+    SMPCache * newcache;
+    newcache = this->cacheFactory(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
+    /*
     if(proto == PROTO_MESI){ 
       newcache = new MESI_SMPCache(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
     }else if(proto == PROTO_MSI){ 
@@ -62,7 +52,9 @@ void MultiCacheSim::createNewCache(){
     }else{
       newcache = new MSI_SMPCache(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
     }
+    */
     allCaches.push_back(newcache);
+
 
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
@@ -77,11 +69,15 @@ void MultiCacheSim::readLine(unsigned long tid, unsigned long rdPC, unsigned lon
     #else
     GetLock(&allCachesLock,1); 
     #endif
+
+
     SMPCache * cacheToRead = findCacheByCPUId(tidToCPUId(tid));
     if(!cacheToRead){
       return;
     }
     cacheToRead->readLine(rdPC,addr);
+
+
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
     #else
@@ -96,11 +92,15 @@ void MultiCacheSim::writeLine(unsigned long tid, unsigned long wrPC, unsigned lo
     #else
     GetLock(&allCachesLock,1); 
     #endif
+
+
     SMPCache * cacheToWrite = findCacheByCPUId(tidToCPUId(tid));
     if(!cacheToWrite){
       return;
     }
     cacheToWrite->writeLine(wrPC,addr);
+
+
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
     #else
@@ -113,6 +113,13 @@ void MultiCacheSim::writeLine(unsigned long tid, unsigned long wrPC, unsigned lo
 int MultiCacheSim::tidToCPUId(int tid){
     //simple for now, perhaps we want to be fancier
     return tid % num_caches; 
+}
+
+char *MultiCacheSim::Identify(){
+  SMPCache *c = findCacheByCPUId(0);
+  if(c != NULL){
+    return c->Identify();
+  }
 }
   
 MultiCacheSim::~MultiCacheSim(){

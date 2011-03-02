@@ -181,7 +181,16 @@ void MSI_SMPCache::writeLine(uint32_t wrPC, uint32_t addr){
 
 }
 
+char *MSI_SMPCache::Identify(){
+  return "MSI Cache Coherence";
+}
+
 MSI_SMPCache::~MSI_SMPCache(){
 
 }
 
+extern "C" SMPCache *Create(int num, std::vector<SMPCache*> *cvec, int csize, int casso, int bs, int addrble, const char *repl, bool skw){
+
+  return new MSI_SMPCache(num,cvec,csize,casso,bs,addrble,repl,skw);
+
+}

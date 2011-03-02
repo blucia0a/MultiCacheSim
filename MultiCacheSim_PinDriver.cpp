@@ -6,10 +6,11 @@
 #include <fstream>
 #include <string>
 #include <string.h>
+#include <dlfcn.h>
 
 #include "MultiCacheSim.h"
 
-MultiCacheSim *The_Cache;
+std::vector<MultiCacheSim *> Caches;
   
 KNOB<unsigned int> KnobCacheSize(KNOB_MODE_WRITEONCE, "pintool",
 			   "csize", "65536", "Cache Size");//default cache is 64KB
@@ -24,7 +25,7 @@ KNOB<unsigned int> KnobNumCaches(KNOB_MODE_WRITEONCE, "pintool",
 			   "numcaches", "1", "Number of Caches to Simulate");
 
 KNOB<string> KnobProtocol(KNOB_MODE_WRITEONCE, "pintool",
-			   "proto", "MSI", "Cache Coherence Protocol To Simulate");
+			   "protos", "./MSI_SMPCache.so", "Cache Coherence Protocol Modules To Simulate");
 
 
 #define MAX_NTHREADS 64
@@ -81,23 +82,23 @@ VOID instrumentImage(IMG img, VOID *v)
 }
 
 void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
-  The_Cache->readLine(tid,inst,addr);
+  std::vector<MultiCacheSim *>::iterator i,e;
+  for(i = Caches.begin(), e = Caches.end(); i != e; i++){
+    (*i)->readLine(tid,inst,addr);
+  }
 }
 
 void Write(THREADID tid, ADDRINT addr, ADDRINT inst){
-  The_Cache->writeLine(tid,inst,addr);
+  std::vector<MultiCacheSim *>::iterator i,e;
+  for(i = Caches.begin(), e = Caches.end(); i != e; i++){
+    (*i)->writeLine(tid,inst,addr);
+  }
 }
 
 VOID instrumentTrace(TRACE trace, VOID *v)
 {
 
-  //BOOL ignore = false;
   RTN rtn = TRACE_Rtn(trace);
-
-//  if(RTN_Valid(rtn)) {
-//    LEVEL_CORE::IMG_TYPE imgType = IMG_Type(SEC_Img(RTN_Sec(rtn)));
-//    ignore = !((imgType == IMG_TYPE_STATIC) || (imgType == IMG_TYPE_SHARED));
-//  }
 
   for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
     for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {  
@@ -123,12 +124,12 @@ VOID instrumentTrace(TRACE trace, VOID *v)
 }
 
 
-VOID threadBegin(UINT32 threadid, VOID * sp, int flags, VOID *v)
+VOID threadBegin(THREADID threadid, CONTEXT *sp, INT32 flags, VOID *v)
 {
   
 }
     
-VOID threadEnd(UINT32 threadid, INT32 code, VOID *v)
+VOID threadEnd(THREADID threadid, const CONTEXT *sp, INT32 flags, VOID *v)
 {
 
 }
@@ -139,14 +140,18 @@ VOID dumpInfo(){
 
 VOID Fini(INT32 code, VOID *v)
 {
-  The_Cache->dumpStatsForAllCaches();
+  std::vector<MultiCacheSim *>::iterator i,e;
+  for(i = Caches.begin(), e = Caches.end(); i != e; i++){
+    (*i)->dumpStatsForAllCaches();
+  }
+  
 }
 
-BOOL segvHandler(THREADID threadid,INT32 sig,CONTEXT *ctx,BOOL hasHndlr,VOID*v){
+BOOL segvHandler(THREADID threadid,INT32 sig,CONTEXT *ctx,BOOL hasHndlr,const EXCEPTION_INFO *pExceptInfo, VOID*v){
   return TRUE;//let the program's handler run too
 }
 
-BOOL termHandler(THREADID threadid,INT32 sig,CONTEXT *ctx,BOOL hasHndlr,VOID*v){
+BOOL termHandler(THREADID threadid,INT32 sig,CONTEXT *ctx,BOOL hasHndlr,const EXCEPTION_INFO *pExceptInfo, VOID*v){
   return TRUE;//let the program's handler run too
 }
 
@@ -166,28 +171,45 @@ int main(int argc, char *argv[])
   unsigned long bsize = KnobBlockSize.Value();
   unsigned long assoc = KnobAssoc.Value();
   unsigned long num = KnobNumCaches.Value();
-  CoherenceProtocol proto;
 
-  if(!strcmp(KnobProtocol.Value().c_str(),"MESI")){
-    proto = PROTO_MESI;
-  }else{//default to MSI
-    proto = PROTO_MSI;
+  const char *pstr = KnobProtocol.Value().c_str();
+  char *ct = strtok((char *)pstr,",");
+  while(ct != NULL){
+
+    void *chand = dlopen( ct, RTLD_LAZY | RTLD_LOCAL );
+    if( chand == NULL ){
+      fprintf(stderr,"Couldn't Load %s\n", argv[1]);
+      fprintf(stderr,"dlerror: %s\n", dlerror());
+      exit(1);
+    }
+  
+    CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
+  
+    if( chand == NULL ){
+      fprintf(stderr,"Couldn't get the Create function\n");
+      fprintf(stderr,"dlerror: %s\n", dlerror());
+      exit(1);
+    }
+
+    MultiCacheSim *c = new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
+    for(unsigned int i = 0; i < num; i++){
+      c->createNewCache();
+    } 
+    Caches.push_back(c);
+
+    ct = strtok(NULL,","); 
+
   }
-
-  The_Cache = new MultiCacheSim(stdout, csize, assoc, bsize, proto);
-  for(unsigned int i = 0; i < num; i++){
-    The_Cache->createNewCache();
-  } 
 
   RTN_AddInstrumentFunction(instrumentRoutine,0);
   IMG_AddInstrumentFunction(instrumentImage, 0);
   TRACE_AddInstrumentFunction(instrumentTrace, 0);
 
-  PIN_AddSignalInterceptFunction(SIGTERM,termHandler,0);
-  PIN_AddSignalInterceptFunction(SIGSEGV,segvHandler,0);
+  PIN_InterceptSignal(SIGTERM,termHandler,0);
+  PIN_InterceptSignal(SIGSEGV,segvHandler,0);
 
-  PIN_AddThreadBeginFunction(threadBegin, 0);
-  PIN_AddThreadEndFunction(threadEnd, 0);
+  PIN_AddThreadStartFunction(threadBegin, 0);
+  PIN_AddThreadFiniFunction(threadEnd, 0);
   PIN_AddFiniFunction(Fini, 0);
  
   PIN_StartProgram();

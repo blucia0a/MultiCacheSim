@@ -11,11 +11,6 @@
 #include "pin.H"
 #endif
   
-enum CoherenceProtocol {
-  PROTO_MSI  = 0,
-  PROTO_MESI = 1
-};
-
 class MultiCacheSim : public CacheInterface{
 
 public:
@@ -43,11 +38,11 @@ public:
   //The output file to dump stats to at the end
   FILE* CacheStats;
 
-  CoherenceProtocol proto;
+  CacheFactory cacheFactory;
   //METHODS
   //Constructor
-  MultiCacheSim(FILE *cachestats,int size, int assoc, int bsize);
-  MultiCacheSim(FILE *cachestats,int size, int assoc, int bsize, CoherenceProtocol p);
+  //MultiCacheSim(FILE *cachestats,int size, int assoc, int bsize);
+  MultiCacheSim(FILE *cachestats,int size, int assoc, int bsize, CacheFactory c);
 
   //Adds a cache to the multicachesim
   void createNewCache();
@@ -62,6 +57,8 @@ public:
 
   //Translate from program threadID to multicachesim CPUId
   int tidToCPUId(int tid);
+
+  char *Identify();
 
   //Destructor
   ~MultiCacheSim();

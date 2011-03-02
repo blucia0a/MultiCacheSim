@@ -32,8 +32,6 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include <strings.h>
 
 #include "CacheCore.h"
-//#include "SescConf.h" 
-//#include "EnergyMgr.h" //NEED TO GET RID OF THIS SOMEHOW
 
 #define k_RANDOM     "RANDOM"
 #define k_LRU        "LRU"
@@ -63,52 +61,10 @@ CacheGeneric<State, Addr_t, Energy> *CacheGeneric<State, Addr_t, Energy>::create
   return cache;
 }
 
-//template<class State, class Addr_t, bool Energy>
-//PowerGroup CacheGeneric<State, Addr_t, Energy>::getRightStat(const char* type)
-//{
-//  if(strcasecmp(type,"icache")==0)
-//    return FetchPower;
-//
-//  if(strcasecmp(type,"itlb")==0)
-//    return FetchPower;
-//
-//  if(strcasecmp(type,"cache")==0)
-//    return MemPower;
-//
-//  if(strcasecmp(type,"tlb")==0)
-//    return MemPower;
-//
-//  if(strcasecmp(type,"dir")==0)
-//    return MemPower;
-//
-//  if(strcasecmp(type,"revLVIDTable")==0)
-//    return MemPower;
-//
-//  if(strcasecmp(type,"nicecache")==0)
-//    return MemPower;
-//
-//  MSG("Unknown power group for [%s], add it to CacheCore", type);
-//  I(0);
-//
-//  // default case
-//  return MemPower;
-//}
 
 template<class State, class Addr_t, bool Energy>
 void CacheGeneric<State, Addr_t, Energy>::createStats(const char *section, const char *name)
 {
-  // get the type
-  //bool typeExists = SescConf->checkCharPtr(section, "deviceType");
-  //const char *type = 0;
-  //if (typeExists)
-    //type = SescConf->getCharPtr(section, "deviceType");
-
-  //int32_t procId = 0;
-  //if ( name[0] == 'P' && name[1] == '(' ) {
-    // This structure is assigned to an specific processor
-    //const char *number = &name[2];
-    //procId = atoi(number);
-  //}
 
 }
 
