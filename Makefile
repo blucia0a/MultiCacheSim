@@ -1,5 +1,6 @@
 PROG = CacheTestDriver
 PINTOOL = MultiCacheSim_PinDriver.so
+MARKDOWN = /usr/bin/markdown
 
 SRCS = SMPCache.cpp MultiCacheSim.cpp CacheCore.cpp Snippets.cpp nanassert.cpp
 FACSRCS = MSI_SMPCache.cpp MESI_SMPCache.cpp
@@ -42,6 +43,11 @@ $(PROG): $(OBJS)
 
 $(PINTOOL): $(OBJS)
 	$(CXX) $(PIN_LDFLAGS) $(LDFLAGS) -o $@ $+ $(PIN_LIBS) $(DBG)
+
+doc: README $(MARKDOWN) 
+	echo "<html><head><title>MultiCacheSim Documentation</title></head><body>" >README.html
+	$(MARKDOWN) README >> README.html
+	echo "</body></html>" >> README.html
 
 ## cleaning
 clean:
