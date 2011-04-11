@@ -1,46 +1,55 @@
-/************************************************
-/MultiCacheSim -- A Multiprocessor coherent cache simulator.
-/Brandon Lucia 2009, 2010
-/University of Washington
-/
-/MultiCacheSim is free software; you can redistribute it and/or modify it 
-/under the terms
-/of the GNU General Public License as published by the Free Software Foundation;
-/either version 2, or (at your option) any later version.
-/
-/MultiCacheSim is distributed in the  hope that  it will  be  useful, 
-/but  WITHOUT ANY
-/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-/
-/You should  have received a copy of  the GNU General  Public License along with
-/MultiCacheSim; see the file COPYING.  If not, write to 
-/Free Software Foundation, 59
-/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-/
-/
-/MultiCacheSim uses code that is part of SESC.  The following is the disclaimer
-/distributed with this code (it also appears in each file from SESC).
-/
-/SESC is free software; you can redistribute it and/or modify it under the terms
-/of the GNU General Public License as published by the Free Software Foundation;
-/either version 2, or (at your option) any later version.
-/
-/SESC is    distributed in the  hope that  it will  be  useful, but  WITHOUT ANY
-/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-/
-/You should  have received a copy of  the GNU General  Public License along with
-/SESC; see the file COPYING.  If not, write to the  Free Software Foundation, 59
-/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-/
-/************************************************
+MultiCacheSim: A coherent multiprocessor cache simulator.
+=========================================================
+Brandon Lucia 2009-2011
+-----------------------
+University of Washington
+------------------------
+  
+  
+License
+=========
+MultiCacheSim is free software; you can redistribute it and/or modify it 
+under the terms
+of the GNU General Public License as published by the Free Software Foundation;
+either version 2, or (at your option) any later version.
+
+MultiCacheSim is distributed in the  hope that  it will  be  useful, 
+but  WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should  have received a copy of  the GNU General  Public License along with
+MultiCacheSim; see the file COPYING.  If not, write to 
+Free Software Foundation, 59
+Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+MultiCacheSim uses code that is part of SESC.  The following is the disclaimer
+distributed with this code (it also appears in each file from SESC).
+
+SESC is free software; you can redistribute it and/or modify it under the terms
+of the GNU General Public License as published by the Free Software Foundation;
+either version 2, or (at your option) any later version.
+
+SESC is    distributed in the  hope that  it will  be  useful, but  WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should  have received a copy of  the GNU General  Public License along with
+SESC; see the file COPYING.  If not, write to the  Free Software Foundation, 59
+Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+
+
+Overview
+========
 MultiCacheSim is a simulation infrastructure for experimenting with coherent caches.
 It is designed to be used directly in your code, or to be built as a pintool.
 This simulator is packaged with MSI and MESI coherence code.  The developer's guide
 below describes the process of adding other protocols to the simulator.
 
-/*Building and Testing the use of MultiCacheSim directly with CacheTestDriver*/
+
+Building and Testing MultiCacheSim with CacheTestDriver
+---------------------------------------------------------------------------
 This code is all plain ol' C++ and has no external library dependences, except on
 the standard library which is relied on for the <vector> class.  it should be
 as simple as typing "make" to build the included test driver (implemented
@@ -48,6 +57,7 @@ in CacheTestDriver.cpp).  After you build everything, run the
 test program.  The output should look like this (ignore these numbers, you're
 just checking that it runs):
 
+<tt>
 -----Cache 0-----
 ReadHits:1
 ReadMisses:200135
@@ -76,10 +86,12 @@ ReadMissesServicedRemotely:3
 WriteHits:0
 CoherenceMisses:0
 WriteMisses:199939
+</tt>
 
 Looking at CacheTestDriver.cpp will give you a nice insight into how to use CacheTestDriver.  
 
-/*What do the output counters mean??*/
+Interpreting the Output
+-----------------------
 The output counters represent interesting events, concerning a cache coherence
 protocol.
 
@@ -101,7 +113,9 @@ A Write Coherence Miss occurs when a processor has a line in shared state, and
 writes to it.  In this situation, the processor must invalidate other caches'
 copies, upgrade, then perform the write.
 
-/*Building MultiCacheSim for use with Pin*/
+
+Building MultiCacheSim as a Pintool
+===================================
 MultiCacheSim can be configured to run as a pin tool (http://pintool.org).
 This is mostly automated, but there's a couple things you need to do for things
 to work correctly.  First, you need to define PIN_HOME in your environment.
@@ -115,24 +129,26 @@ run it like "pin -mt -t MultiCacheSim_PinDriver.so -csize 32768 -bsize 64
 bsize=block size in bytes. assoc=associativity (number of ways per set).
 num_caches=the number of caches to simulate. proto=your protocol (defaults to MSI)
 
-/*Single-Processor simulation*/
+Single-Processor simulation
+---------------------------
 MultiCacheSim is designed as a multiprocessor cache simulator, but if you only
 add 1 cache to your multicachesim object, you will have a uniprocessor cache
 simulator.  Everything else still applies; just provide "0" as the thread id of
 your main thread (or whatever value you want), and you should be good to go.
 
-/////////////////////////////////
-//MultiCacheSim Development Guide
-/////////////////////////////////
+MultiCacheSim Development Guide
+===============================
 This section will give an overview of the code of this project, and will describe what
 is required to add a different cache coherence protocol.  
 
-/*Interface: CacheInterface*/
+Interface: CacheInterface
+-------------------------
 The project's top level interface is the CacheInterface (defined in CacheInterface.h).  This is
 an abstract class that describes client exposed methods relevant to the use of the simulator.
 These methods are ReadLine, WriteLine, and DumpCacheStats.  Note that they are pure virtual.
 
-/*Class: MultiCacheSim*/
+Class: MultiCacheSim
+--------------------
 The base implementation of the CacheInterface interface is the MultiCacheSim class.  This is
 declared and defined in MultiCacheSim.h/cpp.  This class serves as a fancy container for
 SMPCache objects.  The SMPCache inheritance hierarchy will be described below.  
@@ -143,7 +159,8 @@ maps the thread to one of the "processors" (caches) in the MultiCacheSim.  Using
 function to get the CPUId and findCacheByCPUId, you can actually get a pointer to the cache
 you're interested in (if you need one -- normally, you can just use the high level interface).
 
-/*Class: SMPCache*/
+Class: SMPCache
+---------------
 Further down inside is the SMPCache class hierarchy.  SMPCache is at the top of
 the hierarchy, and it is abstract.  The objects that are stored in
 MultiCacheSim's vector of caches must be of this type (specifically, subclasses
@@ -192,8 +209,8 @@ implement it in your subclass of SMPCache because depending on your protocol,
 you may want to make the initial state of a line different (for instance, do we
 make it Shared or Modified by default?).
 
-So in summary:
 To implement a new coherence protocol -- the "Whatever" protocol:
+
 1)Subclass SMPCache.  This generally means creating two new files:
 Whatever_SMPCache.h and Whatever_SMPCache.cpp.  Examples are in
 MSI_SMPCache.h/cpp --Implement readLine, writeLine, and fillLine.  Use
@@ -217,7 +234,8 @@ MSI_SMPCache/MSI_SMPCache as a guide.
   as its CoherenceProtocol argument
 
 
-/*Locking*/
+Locking
+-------
 There is one big sledgehammer of a lock protecting all the caches, so if it is
 used in realtime (e.g., in a pintool) execution serializes on the caches lock.
 Think "Locking the bus" =).  If you decide to change the
