@@ -50,7 +50,7 @@ public:
   //These three functions implement the CacheInterface interface 
   void readLine(unsigned long tid, unsigned long rdPC, unsigned long addr);
   void writeLine(unsigned long tid, unsigned long wrPC, unsigned long addr);
-  void dumpStatsForAllCaches();
+  void dumpStatsForAllCaches(bool concise);
 
   //Utility Function to get the cache object that has the specified CPUid
   SMPCache *findCacheByCPUId(int CPUid);
@@ -59,6 +59,7 @@ public:
   int tidToCPUId(int tid);
 
   char *Identify();
+  int getStateAsInt(unsigned long tid, unsigned long addr);
 
   //Destructor
   ~MultiCacheSim();

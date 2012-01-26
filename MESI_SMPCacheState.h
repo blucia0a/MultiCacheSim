@@ -30,17 +30,15 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
 enum MESIState_t {
   MESI_MODIFIED          = 0x00000001,
-  MESI_EXCLUSIVE         = 0x00000010,
-  MESI_SHARED            = 0x00000100,
-  MESI_INVALID           = 0x00001000
+  MESI_SHARED            = 0x00000010,
+  MESI_INVALID           = 0x00000100,
+  MESI_EXCLUSIVE         = 0x00001000
 };
 
 class MESI_SMPCacheState : public StateGeneric<> {
 
 private:
 protected:
-  //This is the MESI state.
-  MESIState_t state;
 
   //You can add other state that should be 
   //maintained for each cache line here
@@ -49,17 +47,17 @@ protected:
   
 public:
   MESI_SMPCacheState() : StateGeneric<>() {
-    state = MESI_INVALID;
+    state = (unsigned)MESI_INVALID;
   }
 
   // BEGIN CacheCore interface 
   bool isValid() const {
-    return (state != MESI_INVALID);
+    return (state != (unsigned)MESI_INVALID);
   }
 
   void invalidate() {
     clearTag();
-    state = MESI_INVALID;
+    state = (unsigned)MESI_INVALID;
   }
     
   bool isLocked() const {
@@ -73,8 +71,8 @@ public:
 
   void changeStateTo(MESIState_t newstate) {
     // not supposed to invalidate through this interface
-    I(newstate != MESI_INVALID);
-    state = newstate;
+    I(newstate != (unsigned)MESI_INVALID);
+    state = (unsigned)newstate;
   }
 
 };

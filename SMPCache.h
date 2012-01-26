@@ -22,6 +22,8 @@ public:
   int numReadOnInvalidMisses;
   int numReadRequestsSent;
   int numReadMissesServicedByOthers;
+  int numReadMissesServicedByShared;
+  int numReadMissesServicedByModified;
 
   int numWriteHits;
   int numWriteMisses;
@@ -49,6 +51,9 @@ public:
 
   //Dump the stats for this cache to outFile
   virtual void dumpStatsToFile(FILE* outFile);
+  virtual void conciseDumpStatsToFile(FILE* outFile);
+  
+  int getStateAsInt(unsigned long addr);
 
 };
 

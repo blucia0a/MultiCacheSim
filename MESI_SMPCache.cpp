@@ -22,10 +22,12 @@ void MESI_SMPCache::fillLine(uint32_t addr, uint32_t mesi_state){
   
 
 MESI_SMPCache::RemoteReadService MESI_SMPCache::readRemoteAction(uint32_t addr){
+
   std::vector<SMPCache * >::iterator cacheIter;
   std::vector<SMPCache * >::iterator lastCacheIter;
   for(cacheIter = this->getCacheVector()->begin(), lastCacheIter = this->getCacheVector()->end(); cacheIter != lastCacheIter; cacheIter++){
     MESI_SMPCache *otherCache = (MESI_SMPCache*)*cacheIter; 
+
     if(otherCache->getCPUId() == this->getCPUId()){
       continue;
     }
@@ -44,7 +46,7 @@ MESI_SMPCache::RemoteReadService MESI_SMPCache::readRemoteAction(uint32_t addr){
 
       }else if(otherState->getState() == MESI_SHARED){  //doesn't matter except that someone's got it
 
-        return MESI_SMPCache::RemoteReadService(true,false);
+        return MESI_SMPCache::RemoteReadService(true,true);
 
       }else if(otherState->getState() == MESI_INVALID){ //doesn't matter at all.
 
@@ -59,6 +61,7 @@ MESI_SMPCache::RemoteReadService MESI_SMPCache::readRemoteAction(uint32_t addr){
 }
 
 void MESI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
+
   MESI_SMPCacheState *st = (MESI_SMPCacheState *)cache->findLine(addr);    
   //fprintf(stderr,"In MESI ReadLine\n");
   if(!st || (st && !(st->isValid())) ){//Read Miss -- i need to look in other peoples' caches for this data
@@ -70,34 +73,32 @@ void MESI_SMPCache::readLine(uint32_t rdPC, uint32_t addr){
       numReadOnInvalidMisses++;
     }
 
-    //fprintf(stderr,"MESI ReadLine: Miss -- calling remote action\n");
     //Query the other caches and get a remote read service object.
     MESI_SMPCache::RemoteReadService rrs = readRemoteAction(addr);
     numReadRequestsSent++;
       
-    MESIState_t newMesiState = MESI_INVALID;//It will never end up being invalid, though.
+    MESIState_t newMesiState = MESI_INVALID;
+  
+    if(rrs.providedData){
+   
+      numReadMissesServicedByOthers++;
 
-    if(rrs.providedData == false){ //If no one had it, then we have it Exclusive
+      if(rrs.isShared){
+ 
+        numReadMissesServicedByShared++;
+         
+      }else{ 
+      
+        numReadMissesServicedByModified++;
+      } 
 
-      //No Valid Read-Reply: Need to get this data from Memory
+      newMesiState = MESI_SHARED;
+
+    }else{
+
       newMesiState = MESI_EXCLUSIVE;
 
-    }else{ //Someone had it.
-    
-      if(rrs.isShared){
-        
-        //Valid Read-Reply From Shared
-        newMesiState = MESI_SHARED;
-
-      }else{
-        
-        numReadMissesServicedByOthers++;
-
-        //Valid Read-Reply From Modified/Exclusive
-        newMesiState = MESI_SHARED;
-
-      }
-    } 
+    }
     //Fill the line
     //fprintf(stderr,"MESI ReadLine: Miss -- calling fill line\n");
     fillLine(addr,newMesiState); 
@@ -147,6 +148,7 @@ MESI_SMPCache::InvalidateReply MESI_SMPCache::writeRemoteAction(uint32_t addr){
 
 
 void MESI_SMPCache::writeLine(uint32_t wrPC, uint32_t addr){
+
   MESI_SMPCacheState * st = (MESI_SMPCacheState *)cache->findLine(addr);    
     
   if(!st || (st && !(st->isValid())) ){ //Write Miss
@@ -164,7 +166,8 @@ void MESI_SMPCache::writeLine(uint32_t wrPC, uint32_t addr){
     fillLine(addr,MESI_MODIFIED);
     return;
 
-  }else if(st->getState() == MESI_SHARED){ //Coherence Miss
+  }else if(st->getState() == MESI_SHARED ||
+           st->getState() == MESI_EXCLUSIVE){ //Coherence Miss
     
     numWriteMisses++;
     numWriteOnSharedMisses++;
@@ -189,7 +192,7 @@ MESI_SMPCache::~MESI_SMPCache(){
 }
 
 char *MESI_SMPCache::Identify(){
-  return "MESI Cache Coherence";
+  return (char *)"MESI Cache Coherence";
 }
 
 

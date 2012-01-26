@@ -11,7 +11,21 @@
 #include "MultiCacheSim.h"
 
 std::vector<MultiCacheSim *> Caches;
-  
+MultiCacheSim *ReferenceProtocol;
+PIN_LOCK globalLock;
+
+bool stopOnError = false;
+bool printOnError = false;
+
+KNOB<bool> KnobStopOnError(KNOB_MODE_WRITEONCE, "pintool",
+			   "stopOnProtoBug", "false", "Stop the Simulation when a deviation is detected between the test protocol and the reference");//default cache is verbose 
+
+KNOB<bool> KnobPrintOnError(KNOB_MODE_WRITEONCE, "pintool",
+			   "printOnProtoBug", "false", "Print a debugging message when a deviation is detected between the test protocol and the reference");//default cache is verbose 
+
+KNOB<bool> KnobConcise(KNOB_MODE_WRITEONCE, "pintool",
+			   "concise", "true", "Print output concisely");//default cache is verbose 
+
 KNOB<unsigned int> KnobCacheSize(KNOB_MODE_WRITEONCE, "pintool",
 			   "csize", "65536", "Cache Size");//default cache is 64KB
 
@@ -26,6 +40,9 @@ KNOB<unsigned int> KnobNumCaches(KNOB_MODE_WRITEONCE, "pintool",
 
 KNOB<string> KnobProtocol(KNOB_MODE_WRITEONCE, "pintool",
 			   "protos", "./MSI_SMPCache.so", "Cache Coherence Protocol Modules To Simulate");
+
+KNOB<string> KnobReference(KNOB_MODE_WRITEONCE, "pintool",
+			   "reference", "/cse/courses/cse471/11sp/HW2-CacheCoherence/Release/MESI_SMPCache.so", "Reference Protocol that is compared to test Protocols for Correctness");
 
 
 #define MAX_NTHREADS 64
@@ -82,17 +99,58 @@ VOID instrumentImage(IMG img, VOID *v)
 }
 
 void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
+  GetLock(&globalLock, 1);
+  ReferenceProtocol->readLine(tid,inst,addr);
   std::vector<MultiCacheSim *>::iterator i,e;
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
     (*i)->readLine(tid,inst,addr);
+    if(stopOnError || printOnError){
+      if( ReferenceProtocol->getStateAsInt(tid,addr) !=
+          (*i)->getStateAsInt(tid,addr)
+        ){
+        if(printOnError){
+          fprintf(stderr,"[MCS-Read] State of Protocol %s did not match the reference\nShould have been %d but it was %d\n",
+                  (*i)->Identify(),
+                  ReferenceProtocol->getStateAsInt(tid,addr),
+                  (*i)->getStateAsInt(tid,addr));
+          }
+        if(stopOnError){
+          exit(1);
+        }
+      }
+    }
   }
+      
+  ReleaseLock(&globalLock);
 }
 
 void Write(THREADID tid, ADDRINT addr, ADDRINT inst){
+  GetLock(&globalLock, 1);
+  ReferenceProtocol->writeLine(tid,inst,addr);
   std::vector<MultiCacheSim *>::iterator i,e;
+
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
+
     (*i)->writeLine(tid,inst,addr);
+
+    if(stopOnError || printOnError){
+
+      if( ReferenceProtocol->getStateAsInt(tid,addr) !=
+          (*i)->getStateAsInt(tid,addr)
+        ){
+        if(printOnError){
+          fprintf(stderr,"[MCS-Write] State of Protocol %s did not match the reference\nShould have been %d but it was %d\n",
+                  (*i)->Identify(),
+                  ReferenceProtocol->getStateAsInt(tid,addr),
+                  (*i)->getStateAsInt(tid,addr));
+        }
+        if(stopOnError){
+          exit(1);
+        }
+      }
+    }
   }
+  ReleaseLock(&globalLock);
 }
 
 VOID instrumentTrace(TRACE trace, VOID *v)
@@ -140,9 +198,10 @@ VOID dumpInfo(){
 
 VOID Fini(INT32 code, VOID *v)
 {
+
   std::vector<MultiCacheSim *>::iterator i,e;
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
-    (*i)->dumpStatsForAllCaches();
+    (*i)->dumpStatsForAllCaches(KnobConcise.Value());
   }
   
 }
@@ -162,6 +221,8 @@ int main(int argc, char *argv[])
   if( PIN_Init(argc,argv) ) {
     return usage();
   }
+
+  InitLock(&globalLock);
   
   for(int i = 0; i < MAX_NTHREADS; i++){
     instrumentationStatus[i] = true;
@@ -195,11 +256,38 @@ int main(int argc, char *argv[])
     for(unsigned int i = 0; i < num; i++){
       c->createNewCache();
     } 
+    fprintf(stderr,"Loaded Protocol Plugin %s\n",ct);
     Caches.push_back(c);
 
     ct = strtok(NULL,","); 
 
   }
+
+  void *chand = dlopen( KnobReference.Value().c_str(), RTLD_LAZY | RTLD_LOCAL );
+  if( chand == NULL ){
+    fprintf(stderr,"Couldn't Load Reference: %s\n", argv[1]);
+    fprintf(stderr,"dlerror: %s\n", dlerror());
+    exit(1);
+  }
+
+  CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
+
+  if( chand == NULL ){
+    fprintf(stderr,"Couldn't get the Create function\n");
+    fprintf(stderr,"dlerror: %s\n", dlerror());
+    exit(1);
+  }
+
+  ReferenceProtocol = 
+    new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
+
+  for(unsigned int i = 0; i < num; i++){
+    ReferenceProtocol->createNewCache();
+  } 
+  fprintf(stderr,"Using Reference Implementation %s\n",KnobReference.Value().c_str());
+
+  stopOnError = KnobStopOnError.Value();
+  printOnError = KnobPrintOnError.Value();
 
   RTN_AddInstrumentFunction(instrumentRoutine,0);
   IMG_AddInstrumentFunction(instrumentImage, 0);

@@ -358,9 +358,18 @@ public:
 template<class Addr_t=uint32_t>
 class StateGeneric {
 private:
+
   Addr_t tag;
 
+protected:
+  unsigned state;
+
 public:
+  
+  virtual unsigned getState() const {
+    return state;
+  }
+
   virtual ~StateGeneric() {
     tag = 0;
   }

@@ -59,8 +59,8 @@ public:
   virtual void writeLine(uint32_t wrPC, uint32_t addr);//SMPCache Interface Function
   virtual MSI_SMPCache::InvalidateReply writeRemoteAction(uint32_t addr);
  
-  //Fill line touches cache state, bringing addr's block in, and setting its state to mesi_state 
-  virtual void fillLine(uint32_t addr, uint32_t mesi_state);//SMPCache Interface Function
+  //Fill line touches cache state, bringing addr's block in, and setting its state to msi_state 
+  virtual void fillLine(uint32_t addr, uint32_t msi_state);//SMPCache Interface Function
 
   virtual char *Identify();
  

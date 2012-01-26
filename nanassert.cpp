@@ -40,14 +40,16 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 // templetes.
 const char *NanassertID = "";
 
-#include <signal.h>
+//#include <signal.h>
 
 void nanassertexit(){
+/*
 #if (defined TLS)
   // Raising SIGUSR2 here helps debugging a lot
   // It is ignored in normal execution, but stops execution in gdb
   raise(SIGUSR2);
 #endif
+*/
   return;
 }
 

@@ -38,8 +38,6 @@ class MSI_SMPCacheState : public StateGeneric<> {
 
 private:
 protected:
-  //This is the MSI state.
-  MSIState_t state;
 
   //You can add other state that should be 
   //maintained for each cache line here
@@ -48,17 +46,17 @@ protected:
   
 public:
   MSI_SMPCacheState() : StateGeneric<>() {
-    state = MSI_INVALID;
+    state = (unsigned)MSI_INVALID;
   }
 
   // BEGIN CacheCore interface 
   bool isValid() const {
-    return (state != MSI_INVALID);
+    return (state != (unsigned)MSI_INVALID);
   }
 
   void invalidate() {
     clearTag();
-    state = MSI_INVALID;
+    state = (unsigned)MSI_INVALID;
   }
     
   bool isLocked() const {
@@ -72,8 +70,8 @@ public:
 
   void changeStateTo(MSIState_t newstate) {
     // not supposed to invalidate through this interface
-    I(newstate != MSI_INVALID);
-    state = newstate;
+    I(newstate != (unsigned)MSI_INVALID);
+    state = (unsigned)newstate;
   }
 
 };

@@ -1,9 +1,11 @@
 PROG = CacheTestDriver
 PINTOOL = MultiCacheSim_PinDriver.so
 MARKDOWN = /usr/bin/markdown
+PIN=/sampa/share/pin/PIN/pin
 
 SRCS = SMPCache.cpp MultiCacheSim.cpp CacheCore.cpp Snippets.cpp nanassert.cpp
 FACSRCS = MSI_SMPCache.cpp MESI_SMPCache.cpp
+BLDTYPE=pin
 
 ifeq ($(BLDTYPE),pin)
 PIN_KIT=$(PIN_HOME)
@@ -20,7 +22,7 @@ TARG = $(PROG)
 endif
 
 
-CXXFLAGS += -I. -g -O0
+CXXFLAGS += -I. -g -O0 -Wno-deprecated
 
 OBJS = $(SRCS:%.cpp=%.o)
 FACOBJS = $(FACSRCS:%.cpp=%.so)
@@ -28,8 +30,6 @@ FACOBJS = $(FACSRCS:%.cpp=%.so)
 
 all: $(TARG)
 
-test: $(PROG)
-	./CacheTestDriver
 
 ## build rules
 %.o : %.cpp
@@ -51,6 +51,6 @@ doc: README $(MARKDOWN)
 
 ## cleaning
 clean:
-	-rm -f *.o $(PROG) $(PINTOOL)
+	-rm -f *.o $(PROG) $(FACOBJS) $(PINTOOL)
 
 -include *.d

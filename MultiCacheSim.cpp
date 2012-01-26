@@ -26,11 +26,19 @@ SMPCache *MultiCacheSim::findCacheByCPUId(int CPUid){
     return NULL;
 } 
   
-void MultiCacheSim::dumpStatsForAllCaches(){
+void MultiCacheSim::dumpStatsForAllCaches(bool concise){
+   
     std::vector<SMPCache *>::iterator cacheIter = allCaches.begin();
     std::vector<SMPCache *>::iterator cacheEndIter = allCaches.end();
     for(; cacheIter != cacheEndIter; cacheIter++){
-      (*cacheIter)->dumpStatsToFile(CacheStats);
+      if(!concise){
+        (*cacheIter)->dumpStatsToFile(CacheStats);
+      }else{
+
+    fprintf(CacheStats,"CPUId, numReadHits, numReadMisses, numReadOnInvalidMisses, numReadRequestsSent, numReadMissesServicedByOthers, numReadMissesServicedByShared, numReadMissesServicedByModified, numWriteHits, numWriteMisses, numWriteOnSharedMisses, numWriteOnInvalidMisses, numInvalidatesSent\n");
+
+        (*cacheIter)->conciseDumpStatsToFile(CacheStats);
+      }
     }
 }
 
@@ -44,15 +52,6 @@ void MultiCacheSim::createNewCache(){
 
     SMPCache * newcache;
     newcache = this->cacheFactory(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
-    /*
-    if(proto == PROTO_MESI){ 
-      newcache = new MESI_SMPCache(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
-    }else if(proto == PROTO_MSI){ 
-      newcache = new MSI_SMPCache(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
-    }else{
-      newcache = new MSI_SMPCache(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
-    }
-    */
     allCaches.push_back(newcache);
 
 
@@ -109,6 +108,15 @@ void MultiCacheSim::writeLine(unsigned long tid, unsigned long wrPC, unsigned lo
     return;
 }
 
+int MultiCacheSim::getStateAsInt(unsigned long tid, unsigned long addr){
+
+  SMPCache * cacheToWrite = findCacheByCPUId(tidToCPUId(tid));
+  if(!cacheToWrite){
+    return -1;
+  }
+  cacheToWrite->getStateAsInt(addr);
+
+}
 
 int MultiCacheSim::tidToCPUId(int tid){
     //simple for now, perhaps we want to be fancier
