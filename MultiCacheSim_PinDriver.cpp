@@ -16,12 +16,16 @@ PIN_LOCK globalLock;
 
 bool stopOnError = false;
 bool printOnError = false;
+bool useRef = false;
 
 KNOB<bool> KnobStopOnError(KNOB_MODE_WRITEONCE, "pintool",
 			   "stopOnProtoBug", "false", "Stop the Simulation when a deviation is detected between the test protocol and the reference");//default cache is verbose 
 
 KNOB<bool> KnobPrintOnError(KNOB_MODE_WRITEONCE, "pintool",
 			   "printOnProtoBug", "false", "Print a debugging message when a deviation is detected between the test protocol and the reference");//default cache is verbose 
+
+KNOB<bool> KnobUseReference(KNOB_MODE_WRITEONCE, "pintool",
+			   "useref", "false", "Use a reference protocol to compare running protocol states with (default = false)");//default cache is verbose 
 
 KNOB<bool> KnobConcise(KNOB_MODE_WRITEONCE, "pintool",
 			   "concise", "true", "Print output concisely");//default cache is verbose 
@@ -100,11 +104,14 @@ VOID instrumentImage(IMG img, VOID *v)
 
 void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
   GetLock(&globalLock, 1);
-  ReferenceProtocol->readLine(tid,inst,addr);
+  if(useRef){
+    ReferenceProtocol->readLine(tid,inst,addr);
+  }
   std::vector<MultiCacheSim *>::iterator i,e;
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
     (*i)->readLine(tid,inst,addr);
-    if(stopOnError || printOnError){
+    
+    if(useRef && (stopOnError || printOnError)){
       if( ReferenceProtocol->getStateAsInt(tid,addr) !=
           (*i)->getStateAsInt(tid,addr)
         ){
@@ -126,14 +133,16 @@ void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
 
 void Write(THREADID tid, ADDRINT addr, ADDRINT inst){
   GetLock(&globalLock, 1);
-  ReferenceProtocol->writeLine(tid,inst,addr);
+  if(useRef){
+    ReferenceProtocol->writeLine(tid,inst,addr);
+  }
   std::vector<MultiCacheSim *>::iterator i,e;
 
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
 
     (*i)->writeLine(tid,inst,addr);
 
-    if(stopOnError || printOnError){
+    if(useRef && (stopOnError || printOnError)){
 
       if( ReferenceProtocol->getStateAsInt(tid,addr) !=
           (*i)->getStateAsInt(tid,addr)
@@ -198,10 +207,12 @@ VOID dumpInfo(){
 
 VOID Fini(INT32 code, VOID *v)
 {
-
+  
   std::vector<MultiCacheSim *>::iterator i,e;
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
+    GetLock(&globalLock,1);
     (*i)->dumpStatsForAllCaches(KnobConcise.Value());
+    ReleaseLock(&globalLock);
   }
   
 }
@@ -263,28 +274,31 @@ int main(int argc, char *argv[])
 
   }
 
-  void *chand = dlopen( KnobReference.Value().c_str(), RTLD_LAZY | RTLD_LOCAL );
-  if( chand == NULL ){
-    fprintf(stderr,"Couldn't Load Reference: %s\n", argv[1]);
-    fprintf(stderr,"dlerror: %s\n", dlerror());
-    exit(1);
+  useRef = KnobUseReference.Value();
+  if(useRef){
+    void *chand = dlopen( KnobReference.Value().c_str(), RTLD_LAZY | RTLD_LOCAL );
+    if( chand == NULL ){
+      fprintf(stderr,"Couldn't Load Reference: %s\n", argv[1]);
+      fprintf(stderr,"dlerror: %s\n", dlerror());
+      exit(1);
+    }
+  
+    CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
+  
+    if( chand == NULL ){
+      fprintf(stderr,"Couldn't get the Create function\n");
+      fprintf(stderr,"dlerror: %s\n", dlerror());
+      exit(1);
+    }
+  
+    ReferenceProtocol = 
+      new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
+  
+    for(unsigned int i = 0; i < num; i++){
+      ReferenceProtocol->createNewCache();
+    } 
+    fprintf(stderr,"Using Reference Implementation %s\n",KnobReference.Value().c_str());
   }
-
-  CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
-
-  if( chand == NULL ){
-    fprintf(stderr,"Couldn't get the Create function\n");
-    fprintf(stderr,"dlerror: %s\n", dlerror());
-    exit(1);
-  }
-
-  ReferenceProtocol = 
-    new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
-
-  for(unsigned int i = 0; i < num; i++){
-    ReferenceProtocol->createNewCache();
-  } 
-  fprintf(stderr,"Using Reference Implementation %s\n",KnobReference.Value().c_str());
 
   stopOnError = KnobStopOnError.Value();
   printOnError = KnobPrintOnError.Value();
