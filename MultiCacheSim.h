@@ -4,7 +4,6 @@
 #include "MESI_SMPCache.h"
 #include "MSI_SMPCache.h"
 
-
 #ifndef PIN
 #include <pthread.h>
 #else
@@ -24,11 +23,7 @@ public:
   std::vector<SMPCache * > allCaches;
 
   //The lock that protects the vector so it isn't corrupted by concurrent updates
-  #ifndef PIN
-  pthread_mutex_t allCachesLock;
-  #else
   PIN_LOCK allCachesLock;
-  #endif
 
   //Cache Parameters
   int cache_size;
@@ -53,7 +48,7 @@ public:
   void dumpStatsForAllCaches(bool concise);
 
   //Utility Function to get the cache object that has the specified CPUid
-  SMPCache *findCacheByCPUId(int CPUid);
+  SMPCache *findCacheByCPUId(unsigned int CPUid);
 
   //Translate from program threadID to multicachesim CPUId
   int tidToCPUId(int tid);

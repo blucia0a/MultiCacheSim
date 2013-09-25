@@ -43,10 +43,10 @@ KNOB<unsigned int> KnobNumCaches(KNOB_MODE_WRITEONCE, "pintool",
 			   "numcaches", "1", "Number of Caches to Simulate");
 
 KNOB<string> KnobProtocol(KNOB_MODE_WRITEONCE, "pintool",
-			   "protos", "./MSI_SMPCache.so", "Cache Coherence Protocol Modules To Simulate");
+			   "protos", "obj-intel64/MSI_SMPCache.so", "Cache Coherence Protocol Modules To Simulate");
 
 KNOB<string> KnobReference(KNOB_MODE_WRITEONCE, "pintool",
-			   "reference", "/cse/courses/cse471/11sp/HW2-CacheCoherence/Release/MESI_SMPCache.so", "Reference Protocol that is compared to test Protocols for Correctness");
+			   "reference", "obj-intel64/MESI_SMPCache.so", "Reference Protocol that is compared to test Protocols for Correctness");
 
 
 #define MAX_NTHREADS 64
@@ -103,7 +103,7 @@ VOID instrumentImage(IMG img, VOID *v)
 }
 
 void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
-  GetLock(&globalLock, 1);
+  PIN_GetLock(&globalLock, 1);
   if(useRef){
     ReferenceProtocol->readLine(tid,inst,addr);
   }
@@ -128,11 +128,11 @@ void Read(THREADID tid, ADDRINT addr, ADDRINT inst){
     }
   }
       
-  ReleaseLock(&globalLock);
+  PIN_ReleaseLock(&globalLock);
 }
 
 void Write(THREADID tid, ADDRINT addr, ADDRINT inst){
-  GetLock(&globalLock, 1);
+  PIN_GetLock(&globalLock, 1);
   if(useRef){
     ReferenceProtocol->writeLine(tid,inst,addr);
   }
@@ -159,13 +159,11 @@ void Write(THREADID tid, ADDRINT addr, ADDRINT inst){
       }
     }
   }
-  ReleaseLock(&globalLock);
+  PIN_ReleaseLock(&globalLock);
 }
 
 VOID instrumentTrace(TRACE trace, VOID *v)
 {
-
-  RTN rtn = TRACE_Rtn(trace);
 
   for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
     for (INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {  
@@ -210,9 +208,9 @@ VOID Fini(INT32 code, VOID *v)
   
   std::vector<MultiCacheSim *>::iterator i,e;
   for(i = Caches.begin(), e = Caches.end(); i != e; i++){
-    GetLock(&globalLock,1);
+    PIN_GetLock(&globalLock,1);
     (*i)->dumpStatsForAllCaches(KnobConcise.Value());
-    ReleaseLock(&globalLock);
+    PIN_ReleaseLock(&globalLock);
   }
   
 }
@@ -233,7 +231,7 @@ int main(int argc, char *argv[])
     return usage();
   }
 
-  InitLock(&globalLock);
+  PIN_InitLock(&globalLock);
   
   for(int i = 0; i < MAX_NTHREADS; i++){
     instrumentationStatus[i] = true;
@@ -248,6 +246,7 @@ int main(int argc, char *argv[])
   char *ct = strtok((char *)pstr,",");
   while(ct != NULL){
 
+    fprintf(stderr,"Opening protocol \"%s\"\n",ct);
     void *chand = dlopen( ct, RTLD_LAZY | RTLD_LOCAL );
     if( chand == NULL ){
       fprintf(stderr,"Couldn't Load %s\n", argv[1]);
@@ -256,18 +255,21 @@ int main(int argc, char *argv[])
     }
   
     CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
-  
+
     if( chand == NULL ){
+
       fprintf(stderr,"Couldn't get the Create function\n");
       fprintf(stderr,"dlerror: %s\n", dlerror());
       exit(1);
+
     }
 
     MultiCacheSim *c = new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
+
     for(unsigned int i = 0; i < num; i++){
       c->createNewCache();
     } 
-    fprintf(stderr,"Loaded Protocol Plugin %s\n",ct);
+
     Caches.push_back(c);
 
     ct = strtok(NULL,","); 
@@ -284,7 +286,6 @@ int main(int argc, char *argv[])
     }
   
     CacheFactory cfac = (CacheFactory)dlsym(chand, "Create");
-  
     if( chand == NULL ){
       fprintf(stderr,"Couldn't get the Create function\n");
       fprintf(stderr,"dlerror: %s\n", dlerror());
@@ -295,9 +296,13 @@ int main(int argc, char *argv[])
       new MultiCacheSim(stdout, csize, assoc, bsize, cfac);
   
     for(unsigned int i = 0; i < num; i++){
+
       ReferenceProtocol->createNewCache();
+
     } 
+
     fprintf(stderr,"Using Reference Implementation %s\n",KnobReference.Value().c_str());
+
   }
 
   stopOnError = KnobStopOnError.Value();
@@ -313,6 +318,8 @@ int main(int argc, char *argv[])
   PIN_AddThreadStartFunction(threadBegin, 0);
   PIN_AddThreadFiniFunction(threadEnd, 0);
   PIN_AddFiniFunction(Fini, 0);
+    
+  fprintf(stderr,"Using Protocol %s\n",KnobReference.Value().c_str());
  
   PIN_StartProgram();
   

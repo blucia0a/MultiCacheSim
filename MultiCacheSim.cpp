@@ -1,6 +1,7 @@
 #include "MultiCacheSim.h"
 
 MultiCacheSim::MultiCacheSim(FILE *cachestats, int size, int assoc, int bsize, CacheFactory c){
+
   cacheFactory = c;
   CacheStats = cachestats;
   num_caches = 0;
@@ -11,11 +12,12 @@ MultiCacheSim::MultiCacheSim(FILE *cachestats, int size, int assoc, int bsize, C
   #ifndef PIN
   pthread_mutex_init(&allCachesLock, NULL);
   #else
-  InitLock(&allCachesLock);
+  PIN_InitLock(&allCachesLock);
   #endif
+
 }
 
-SMPCache *MultiCacheSim::findCacheByCPUId(int CPUid){
+SMPCache *MultiCacheSim::findCacheByCPUId(unsigned int CPUid){
     std::vector<SMPCache *>::iterator cacheIter = allCaches.begin();
     std::vector<SMPCache *>::iterator cacheEndIter = allCaches.end();
     for(; cacheIter != cacheEndIter; cacheIter++){
@@ -43,12 +45,12 @@ void MultiCacheSim::dumpStatsForAllCaches(bool concise){
 }
 
 void MultiCacheSim::createNewCache(){
+
     #ifndef PIN
     pthread_mutex_lock(&allCachesLock);
     #else
-    GetLock(&allCachesLock,1); 
+    PIN_GetLock(&allCachesLock,1); 
     #endif
-
 
     SMPCache * newcache;
     newcache = this->cacheFactory(num_caches++, &allCaches, cache_size, cache_assoc, cache_bsize, 1, "LRU", false);
@@ -58,7 +60,7 @@ void MultiCacheSim::createNewCache(){
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
     #else
-    ReleaseLock(&allCachesLock); 
+    PIN_ReleaseLock(&allCachesLock); 
     #endif
 }
 
@@ -66,7 +68,7 @@ void MultiCacheSim::readLine(unsigned long tid, unsigned long rdPC, unsigned lon
     #ifndef PIN
     pthread_mutex_lock(&allCachesLock);
     #else
-    GetLock(&allCachesLock,1); 
+    PIN_GetLock(&allCachesLock,1); 
     #endif
 
 
@@ -80,7 +82,7 @@ void MultiCacheSim::readLine(unsigned long tid, unsigned long rdPC, unsigned lon
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
     #else
-    ReleaseLock(&allCachesLock); 
+    PIN_ReleaseLock(&allCachesLock); 
     #endif
     return;
 }
@@ -89,7 +91,7 @@ void MultiCacheSim::writeLine(unsigned long tid, unsigned long wrPC, unsigned lo
     #ifndef PIN
     pthread_mutex_lock(&allCachesLock);
     #else
-    GetLock(&allCachesLock,1); 
+    PIN_GetLock(&allCachesLock,1); 
     #endif
 
 
@@ -103,7 +105,7 @@ void MultiCacheSim::writeLine(unsigned long tid, unsigned long wrPC, unsigned lo
     #ifndef PIN
     pthread_mutex_unlock(&allCachesLock);
     #else
-    ReleaseLock(&allCachesLock); 
+    PIN_ReleaseLock(&allCachesLock); 
     #endif
     return;
 }
@@ -114,7 +116,7 @@ int MultiCacheSim::getStateAsInt(unsigned long tid, unsigned long addr){
   if(!cacheToWrite){
     return -1;
   }
-  cacheToWrite->getStateAsInt(addr);
+  return cacheToWrite->getStateAsInt(addr);
 
 }
 
@@ -128,6 +130,7 @@ char *MultiCacheSim::Identify(){
   if(c != NULL){
     return c->Identify();
   }
+  return 0;
 }
   
 MultiCacheSim::~MultiCacheSim(){
